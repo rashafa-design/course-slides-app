@@ -2,24 +2,31 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { DeckStatus } from "@/lib/types";
 
-export default function ExtractButton({ deckId }: { deckId: string }) {
+export default function ProcessButton({
+  deckId,
+  status,
+}: {
+  deckId: string;
+  status: DeckStatus;
+}) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
 
   async function handleClick() {
-    setLoading(true);
+    setRunning(true);
     setError(null);
 
-    const response = await fetch("/api/extract", {
+    const response = await fetch("/api/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ deckId }),
     });
     const body = await response.json();
 
-    setLoading(false);
+    setRunning(false);
 
     if (!response.ok) {
       setError(body.error ?? "Something went wrong.");
@@ -29,15 +36,23 @@ export default function ExtractButton({ deckId }: { deckId: string }) {
     router.refresh();
   }
 
+  const label = running
+    ? "Processing..."
+    : status === "ready"
+      ? "Re-process"
+      : status === "failed"
+        ? "Retry"
+        : "Process this deck";
+
   return (
     <div className="mt-2">
       <button
         type="button"
         onClick={handleClick}
-        disabled={loading}
+        disabled={running}
         className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-100 disabled:opacity-50"
       >
-        {loading ? "Reading..." : "Extract text"}
+        {label}
       </button>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

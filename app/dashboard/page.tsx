@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MODE_LABELS, STATUS_LABELS, type DeckRow } from "@/lib/types";
 import SignOutButton from "./sign-out-button";
-import ExtractButton from "./extract-button";
+import ProcessButton from "./process-button";
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -73,7 +73,11 @@ export default async function DashboardPage() {
                 {new Date(deck.created_at).toLocaleString()} · {deck.style} style
               </p>
 
-              <ExtractButton deckId={deck.id} />
+              <ProcessButton deckId={deck.id} status={deck.status} />
+
+              {deck.status === "failed" && deck.error_message && (
+                <p className="mt-2 text-xs text-red-600">{deck.error_message}</p>
+              )}
 
               {deck.extracted_text && (
                 <details className="mt-2">

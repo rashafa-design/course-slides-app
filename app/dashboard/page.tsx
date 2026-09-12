@@ -23,17 +23,26 @@ export default async function DashboardPage() {
 
   const decksWithImageUrls = await Promise.all(
     (decks ?? []).map(async (deck) => {
-      const signedUrls = await Promise.all(
-        deck.extracted_image_paths.map(async (path) => {
+      const allPaths = new Set(deck.extracted_image_paths);
+      for (const slide of deck.slides_json ?? []) {
+        for (const path of slide.images ?? []) allPaths.add(path);
+      }
+
+      const entries = await Promise.all(
+        Array.from(allPaths).map(async (path) => {
           const { data } = await supabase.storage
             .from("course-files")
             .createSignedUrl(path, 60 * 60);
-          return data?.signedUrl ?? null;
+          return [path, data?.signedUrl ?? null] as const;
         })
       );
+
+      const urlByPath = new Map(entries.filter((entry): entry is [string, string] => Boolean(entry[1])));
+
       return {
         deck,
-        imageUrls: signedUrls.filter((url): url is string => Boolean(url)),
+        urlByPath,
+        imageUrls: deck.extracted_image_paths.map((p) => urlByPath.get(p)).filter((u): u is string => Boolean(u)),
       };
     })
   );
@@ -61,7 +70,7 @@ export default async function DashboardPage() {
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {decksWithImageUrls.map(({ deck, imageUrls }) => (
+          {decksWithImageUrls.map(({ deck, imageUrls, urlByPath }) => (
             <li key={deck.id} className="rounded-md border border-gray-200 p-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{MODE_LABELS[deck.mode]}</span>
@@ -114,6 +123,22 @@ export default async function DashboardPage() {
                             Discuss: {slide.discussionQuestions.join(" / ")}
                           </p>
                         )}
+                        {(slide.images ?? []).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(slide.images ?? [])
+                              .map((path) => urlByPath.get(path))
+                              .filter((url): url is string => Boolean(url))
+                              .map((url) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={url}
+                                  src={url}
+                                  alt=""
+                                  className="h-12 w-12 rounded object-cover"
+                                />
+                              ))}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ol>
@@ -121,17 +146,22 @@ export default async function DashboardPage() {
               )}
 
               {imageUrls.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {imageUrls.map((url) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={url}
-                      src={url}
-                      alt=""
-                      className="h-16 w-16 rounded object-cover"
-                    />
-                  ))}
-                </div>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-gray-500">
+                    All images found in your material ({imageUrls.length})
+                  </summary>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {imageUrls.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={url}
+                        src={url}
+                        alt=""
+                        className="h-16 w-16 rounded object-cover"
+                      />
+                    ))}
+                  </div>
+                </details>
               )}
             </li>
           ))}

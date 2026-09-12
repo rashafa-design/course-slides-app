@@ -3,7 +3,12 @@ export interface ExtractedImage {
   data: Buffer;
 }
 
-export interface ExtractedContent {
+export interface ExtractedSection {
+  label: string;
   text: string;
   images: ExtractedImage[];
+}
+
+export interface ExtractedContent {
+  sections: ExtractedSection[];
 }

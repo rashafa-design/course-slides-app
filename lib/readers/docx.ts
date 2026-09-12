@@ -30,5 +30,5 @@ export async function readDocx(buffer: Buffer): Promise<ExtractedContent> {
     });
   }
 
-  return { text, images };
+  return { sections: [{ label: "Document", text, images }] };
 }

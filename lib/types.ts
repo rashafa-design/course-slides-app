@@ -30,6 +30,12 @@ export interface SlideContent {
   bullets: string[];
   speakerNotes: string;
   discussionQuestions: string[];
+  // Which source sections (e.g. "chapter.pptx :: Slide 3") the AI says this
+  // slide drew from - filled in by the AI's own response.
+  sourceLabels?: string[];
+  // Storage paths for images tied to those source sections - filled in by
+  // our own code after the AI responds, never by the AI itself.
+  images?: string[];
 }
 
 export interface DeckRow {

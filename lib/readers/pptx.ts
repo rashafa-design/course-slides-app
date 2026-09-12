@@ -1,6 +1,33 @@
 import JSZip from "jszip";
-import type { ExtractedContent, ExtractedImage } from "./types";
+import type { ExtractedContent, ExtractedImage, ExtractedSection } from "./types";
 import { extractTagText } from "./xml-utils";
+
+// A slide's own .rels file maps relationship ids (rId1, rId2, ...) to the
+// actual media files it uses - this is what lets us say "this specific
+// picture belongs to this specific slide" instead of just "here's every
+// picture somewhere in the file."
+function parseRelationships(xml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const tagRegex = /<Relationship\b[^>]*\/>/g;
+  let tagMatch: RegExpExecArray | null;
+  while ((tagMatch = tagRegex.exec(xml)) !== null) {
+    const tag = tagMatch[0];
+    const id = tag.match(/\bId="([^"]+)"/)?.[1];
+    const target = tag.match(/\bTarget="([^"]+)"/)?.[1];
+    if (id && target) map.set(id, target);
+  }
+  return map;
+}
+
+function extractBlipRelIds(xml: string): string[] {
+  const ids: string[] = [];
+  const regex = /<a:blip\b[^>]*r:embed="([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(xml)) !== null) {
+    ids.push(m[1]);
+  }
+  return ids;
+}
 
 export async function readPptx(buffer: Buffer): Promise<ExtractedContent> {
   const zip = await JSZip.loadAsync(buffer);
@@ -13,29 +40,44 @@ export async function readPptx(buffer: Buffer): Promise<ExtractedContent> {
       return numA - numB;
     });
 
-  const slideTexts: string[] = [];
+  const sections: ExtractedSection[] = [];
+
   for (let i = 0; i < slideFiles.length; i++) {
-    const xml = await zip.files[slideFiles[i]].async("string");
-    // Split on paragraph boundaries first so each bullet/line stays on its
-    // own line, rather than every run on the slide running together.
+    const slideFileName = slideFiles[i];
+    const xml = await zip.files[slideFileName].async("string");
+
     const paragraphs = xml
       .split(/<\/a:p>/)
       .map((para) => extractTagText(para, /<a:t>([\s\S]*?)<\/a:t>/g).join(" ").trim())
       .filter((line) => line.length > 0);
 
-    slideTexts.push(`Slide ${i + 1}:\n${paragraphs.join("\n")}`);
+    const images: ExtractedImage[] = [];
+    const slideBaseName = slideFileName.split("/").pop();
+    const relsFile = zip.files[`ppt/slides/_rels/${slideBaseName}.rels`];
+
+    if (relsFile) {
+      const relIdToTarget = parseRelationships(await relsFile.async("string"));
+      const usedRelIds = extractBlipRelIds(xml);
+
+      for (const relId of usedRelIds) {
+        const target = relIdToTarget.get(relId);
+        if (!target) continue;
+        // Targets are relative to ppt/slides/, e.g. "../media/image1.png".
+        const mediaPath = target.startsWith("../")
+          ? `ppt/${target.slice(3)}`
+          : `ppt/slides/${target}`;
+        const mediaFile = zip.files[mediaPath];
+        if (mediaFile && !mediaFile.dir) {
+          images.push({
+            fileName: mediaPath.split("/").pop() ?? mediaPath,
+            data: await mediaFile.async("nodebuffer"),
+          });
+        }
+      }
+    }
+
+    sections.push({ label: `Slide ${i + 1}`, text: paragraphs.join("\n"), images });
   }
 
-  const images: ExtractedImage[] = [];
-  for (const fileName of Object.keys(zip.files)) {
-    if (!fileName.startsWith("ppt/media/")) continue;
-    const file = zip.files[fileName];
-    if (file.dir) continue;
-    images.push({
-      fileName: fileName.split("/").pop() ?? fileName,
-      data: await file.async("nodebuffer"),
-    });
-  }
-
-  return { text: slideTexts.join("\n\n"), images };
+  return { sections };
 }

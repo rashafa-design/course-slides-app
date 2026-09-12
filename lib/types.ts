@@ -48,6 +48,7 @@ export interface DeckRow {
   status: DeckStatus;
   deck_file_path: string | null;
   error_message: string | null;
+  image_generation_note: string | null;
   extracted_text: string | null;
   extracted_image_paths: string[];
   slides_json: SlideContent[] | null;

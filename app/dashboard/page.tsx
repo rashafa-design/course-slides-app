@@ -112,6 +112,10 @@ export default async function DashboardPage() {
                 <p className="mt-2 text-xs text-red-600">{deck.error_message}</p>
               )}
 
+              {deck.image_generation_note && (
+                <p className="mt-2 text-xs text-amber-600">{deck.image_generation_note}</p>
+              )}
+
               {deck.extracted_text && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-gray-500">
@@ -172,7 +176,7 @@ export default async function DashboardPage() {
               {imageUrls.length > 0 && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-gray-500">
-                    All images found in your material ({imageUrls.length})
+                    All images in this deck ({imageUrls.length})
                   </summary>
                   <div className="mt-1 flex flex-wrap gap-2">
                     {imageUrls.map((url) => (

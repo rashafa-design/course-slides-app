@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { extractContent, type ExtractedImage } from "@/lib/readers";
 import { generateSlides, type SourceSection } from "@/lib/ai/generate-slides";
 import { buildDeck } from "@/lib/pptx/build-deck";
+import { generateImage, ImageQuotaExceededError } from "@/lib/ai/generate-image";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -125,6 +126,47 @@ export async function POST(request: Request) {
     imagesBySlide.push(matched.map((m) => m.image));
   }
 
+  // For slides with no real diagram to reuse, try generating one - but the
+  // moment the free tier's limit is hit, stop asking for more rather than
+  // failing the whole deck over it. Slides after that point just go without.
+  const MAX_GENERATION_ATTEMPTS = 8;
+  let imageGenerationNote: string | null = null;
+  let quotaHit = false;
+  let attempts = 0;
+
+  for (let i = 0; i < slides.length; i++) {
+    if (quotaHit || imagesBySlide[i].length > 0) continue;
+    if (attempts >= MAX_GENERATION_ATTEMPTS) break;
+    attempts++;
+
+    const slide = slides[i];
+    const prompt =
+      `A simple, clean educational illustration for a college course slide titled "${slide.title}". ` +
+      `Key points: ${(slide.bullets ?? []).join("; ")}. Flat, minimal, presentation-appropriate style, no text in the image.`;
+
+    try {
+      const imageBuffer = await generateImage(prompt);
+      if (imageBuffer) {
+        const path = `${user.id}/generated/${deckId}/${i}.png`;
+        const { error: genUploadError } = await supabase.storage
+          .from("course-files")
+          .upload(path, imageBuffer, { upsert: true, contentType: "image/png" });
+        if (!genUploadError) {
+          slide.images = [path];
+          allImagePaths.push(path);
+          imagesBySlide[i] = [{ fileName: `${i}.png`, data: imageBuffer }];
+        }
+      }
+    } catch (err) {
+      if (err instanceof ImageQuotaExceededError) {
+        quotaHit = true;
+        imageGenerationNote =
+          "Gemini's free image-generation limit was reached partway through - some slides don't have a generated image. Try re-processing later to fill in the rest.";
+      }
+      // Any other error: skip just this one image and keep going.
+    }
+  }
+
   let deckBuffer: Buffer;
   try {
     deckBuffer = await buildDeck(slides, imagesBySlide, deck.style);
@@ -155,6 +197,7 @@ export async function POST(request: Request) {
       extracted_image_paths: allImagePaths,
       slides_json: slides,
       deck_file_path: deckFilePath,
+      image_generation_note: imageGenerationNote,
       status: "ready",
       error_message: null,
       updated_at: new Date().toISOString(),

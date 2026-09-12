@@ -64,7 +64,10 @@ export async function buildDeck(
 
     if ((slide.bullets ?? []).length > 0) {
       pptxSlide.addText(
-        slide.bullets.map((b) => ({ text: b, options: { bullet: true, breakLine: true } })),
+        slide.bullets.map((b) => ({
+          text: b,
+          options: { bullet: true, breakLine: true, paraSpaceAfter: 14 },
+        })),
         {
           x: 0.5,
           y: 1.4,

@@ -4,7 +4,7 @@ import { extractContent } from "@/lib/readers";
 import { generateSlides } from "@/lib/ai/generate-slides";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const { deckId } = (await request.json()) as { deckId?: string };

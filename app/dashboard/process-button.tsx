@@ -19,21 +19,32 @@ export default function ProcessButton({
     setRunning(true);
     setError(null);
 
-    const response = await fetch("/api/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deckId }),
-    });
-    const body = await response.json();
+    try {
+      const response = await fetch("/api/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deckId }),
+      });
 
-    setRunning(false);
+      let body: { error?: string } = {};
+      try {
+        body = await response.json();
+      } catch {
+        // Response wasn't JSON - likely a timeout/crash page, fall through
+        // to the generic message below rather than throwing here.
+      }
 
-    if (!response.ok) {
-      setError(body.error ?? "Something went wrong.");
-      return;
+      if (!response.ok) {
+        setError(body.error ?? "That took too long or crashed - try again.");
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server - check your connection and try again.");
+    } finally {
+      setRunning(false);
     }
-
-    router.refresh();
   }
 
   const label = running

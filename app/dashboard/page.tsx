@@ -90,6 +90,36 @@ export default async function DashboardPage() {
                 </details>
               )}
 
+              {deck.slides_json && deck.slides_json.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-gray-500">
+                    Slide outline ({deck.slides_json.length} slides)
+                  </summary>
+                  <ol className="mt-1 flex flex-col gap-2">
+                    {deck.slides_json.map((slide, i) => (
+                      <li key={i} className="rounded bg-gray-50 p-2 text-xs">
+                        <p className="font-medium">
+                          {i + 1}. {slide.title}
+                        </p>
+                        <ul className="ml-4 list-disc">
+                          {(slide.bullets ?? []).map((bullet, j) => (
+                            <li key={j}>{bullet}</li>
+                          ))}
+                        </ul>
+                        {slide.speakerNotes && (
+                          <p className="mt-1 italic text-gray-500">Notes: {slide.speakerNotes}</p>
+                        )}
+                        {(slide.discussionQuestions ?? []).length > 0 && (
+                          <p className="mt-1 text-gray-500">
+                            Discuss: {slide.discussionQuestions.join(" / ")}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+
               {imageUrls.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {imageUrls.map((url) => (

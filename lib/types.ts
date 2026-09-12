@@ -25,6 +25,13 @@ export interface UploadRow {
   created_at: string;
 }
 
+export interface SlideContent {
+  title: string;
+  bullets: string[];
+  speakerNotes: string;
+  discussionQuestions: string[];
+}
+
 export interface DeckRow {
   id: string;
   user_id: string;
@@ -36,6 +43,7 @@ export interface DeckRow {
   error_message: string | null;
   extracted_text: string | null;
   extracted_image_paths: string[];
+  slides_json: SlideContent[] | null;
   created_at: string;
   updated_at: string;
 }

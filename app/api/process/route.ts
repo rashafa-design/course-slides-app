@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractContent } from "@/lib/readers";
+import { generateSlides } from "@/lib/ai/generate-slides";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -94,11 +95,21 @@ export async function POST(request: Request) {
     }
   }
 
+  let slides;
+  try {
+    slides = await generateSlides(textSections.join("\n\n"));
+  } catch (err) {
+    const message = `Couldn't generate slide content: ${(err as Error).message}`;
+    await markFailed(message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   const { error: updateError } = await supabase
     .from("decks")
     .update({
       extracted_text: textSections.join("\n\n"),
       extracted_image_paths: imagePaths,
+      slides_json: slides,
       status: "ready",
       error_message: null,
       updated_at: new Date().toISOString(),

@@ -90,6 +90,11 @@ export default async function DashboardPage() {
               <p className="text-xs text-gray-400">
                 {new Date(deck.created_at).toLocaleString()} · {deck.style} style
               </p>
+              {deck.instructions && (
+                <p className="mt-1 text-xs italic text-gray-500">
+                  &quot;{deck.instructions}&quot;
+                </p>
+              )}
 
               <div className="flex items-center gap-2">
                 <ProcessButton deckId={deck.id} status={deck.status} />

@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 
   let slides;
   try {
-    slides = await generateSlides(sourceSections);
+    slides = await generateSlides(sourceSections, deck.instructions);
   } catch (err) {
     const message = `Couldn't generate slide content: ${(err as Error).message}`;
     await markFailed(message);

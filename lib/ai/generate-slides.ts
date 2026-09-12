@@ -12,14 +12,25 @@ export interface SourceSection {
   text: string;
 }
 
-export async function generateSlides(sections: SourceSection[]): Promise<SlideContent[]> {
+export async function generateSlides(
+  sections: SourceSection[],
+  instructions?: string | null
+): Promise<SlideContent[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("No Anthropic API key is configured yet.");
   }
 
   const labels = sections.map((s) => s.label);
-  const sourceText = sections.map((s) => `=== ${s.label} ===\n${s.text}`).join("\n\n");
+  let sourceText = sections.map((s) => `=== ${s.label} ===\n${s.text}`).join("\n\n");
+
+  if (instructions && instructions.trim()) {
+    sourceText =
+      `The instructor gave these specific instructions - follow them closely, ` +
+      `even ahead of the general guidance above where they conflict (for example, ` +
+      `a requested slide count overrides "one slide per major concept"):\n"${instructions.trim()}"\n\n` +
+      sourceText;
+  }
 
   const anthropic = new Anthropic({ apiKey });
 

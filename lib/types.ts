@@ -44,6 +44,7 @@ export interface DeckRow {
   upload_ids: string[];
   mode: UploadMode;
   style: DeckStyle;
+  instructions: string | null;
   status: DeckStatus;
   deck_file_path: string | null;
   error_message: string | null;

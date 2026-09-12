@@ -14,6 +14,7 @@ export default function UploadForm({ userId }: { userId: string }) {
 
   const [mode, setMode] = useState<UploadMode>("rebuild_slides");
   const [style, setStyle] = useState<DeckStyle>("plain");
+  const [instructions, setInstructions] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +77,7 @@ export default function UploadForm({ userId }: { userId: string }) {
       upload_ids: uploadIds,
       mode,
       style,
+      instructions: instructions.trim() || null,
       status: "uploaded",
     });
 
@@ -151,6 +153,20 @@ export default function UploadForm({ userId }: { userId: string }) {
           Consistent branded template
         </label>
       </fieldset>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="instructions" className="text-sm font-medium text-gray-700">
+          Anything specific to follow? (optional)
+        </label>
+        <textarea
+          id="instructions"
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          placeholder={'e.g. "keep it to about 10 slides" or "summarize the dense parts, expand the light ones"'}
+          rows={3}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractContent } from "@/lib/readers";
-import { generateSlides } from "@/lib/ai/generate-slides";
+import { generateSlides, type SourceSection } from "@/lib/ai/generate-slides";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not load uploaded files." }, { status: 500 });
   }
 
-  const promptSections: string[] = [];
+  const sourceSections: SourceSection[] = [];
   const allImagePaths: string[] = [];
   // Maps a source label (e.g. "chapter.pptx :: Slide 3") to the storage
   // paths of images that appeared in that exact section, so we can hand
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     for (const section of extracted.sections) {
       const label = `${upload.file_name} :: ${section.label}`;
-      promptSections.push(`=== ${label} ===\n${section.text}`);
+      sourceSections.push({ label, text: section.text });
 
       const sectionPaths: string[] = [];
       for (let i = 0; i < section.images.length; i++) {
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
   let slides;
   try {
-    slides = await generateSlides(promptSections.join("\n\n"));
+    slides = await generateSlides(sourceSections);
   } catch (err) {
     const message = `Couldn't generate slide content: ${(err as Error).message}`;
     await markFailed(message);
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
   const { error: updateError } = await supabase
     .from("decks")
     .update({
-      extracted_text: promptSections.join("\n\n"),
+      extracted_text: sourceSections.map((s) => `=== ${s.label} ===\n${s.text}`).join("\n\n"),
       extracted_image_paths: allImagePaths,
       slides_json: slides,
       status: "ready",

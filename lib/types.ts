@@ -34,6 +34,8 @@ export interface DeckRow {
   status: DeckStatus;
   deck_file_path: string | null;
   error_message: string | null;
+  extracted_text: string | null;
+  extracted_image_paths: string[];
   created_at: string;
   updated_at: string;
 }

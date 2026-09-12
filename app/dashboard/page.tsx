@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MODE_LABELS, STATUS_LABELS, type DeckRow } from "@/lib/types";
 import SignOutButton from "./sign-out-button";
+import ExtractButton from "./extract-button";
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -19,6 +20,23 @@ export default async function DashboardPage() {
     .select("*")
     .order("created_at", { ascending: false })
     .returns<DeckRow[]>();
+
+  const decksWithImageUrls = await Promise.all(
+    (decks ?? []).map(async (deck) => {
+      const signedUrls = await Promise.all(
+        deck.extracted_image_paths.map(async (path) => {
+          const { data } = await supabase.storage
+            .from("course-files")
+            .createSignedUrl(path, 60 * 60);
+          return data?.signedUrl ?? null;
+        })
+      );
+      return {
+        deck,
+        imageUrls: signedUrls.filter((url): url is string => Boolean(url)),
+      };
+    })
+  );
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 px-4 py-12">
@@ -37,13 +55,13 @@ export default async function DashboardPage() {
         Upload material
       </Link>
 
-      {!decks || decks.length === 0 ? (
+      {decksWithImageUrls.length === 0 ? (
         <p className="text-sm text-gray-500">
           Nothing uploaded yet — click Upload material above to get started.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {decks.map((deck) => (
+          {decksWithImageUrls.map(({ deck, imageUrls }) => (
             <li key={deck.id} className="rounded-md border border-gray-200 p-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{MODE_LABELS[deck.mode]}</span>
@@ -54,6 +72,33 @@ export default async function DashboardPage() {
               <p className="text-xs text-gray-400">
                 {new Date(deck.created_at).toLocaleString()} · {deck.style} style
               </p>
+
+              <ExtractButton deckId={deck.id} />
+
+              {deck.extracted_text && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-gray-500">
+                    Extracted text preview
+                  </summary>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 text-xs">
+                    {deck.extracted_text.slice(0, 2000)}
+                  </pre>
+                </details>
+              )}
+
+              {imageUrls.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {imageUrls.map((url) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={url}
+                      src={url}
+                      alt=""
+                      className="h-16 w-16 rounded object-cover"
+                    />
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>

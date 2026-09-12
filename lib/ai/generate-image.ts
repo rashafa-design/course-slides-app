@@ -26,12 +26,15 @@ export async function generateImage(prompt: string): Promise<Buffer | null> {
   });
 
   if (response.status === 429) {
-    throw new ImageQuotaExceededError("Gemini's free image-generation limit was reached.");
+    const body = await response.text();
+    throw new ImageQuotaExceededError(
+      `Gemini's free image-generation limit was reached: ${body.slice(0, 400)}`
+    );
   }
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Gemini image request failed (${response.status}): ${body.slice(0, 300)}`);
+    throw new Error(`Gemini image request failed (${response.status}): ${body.slice(0, 400)}`);
   }
 
   const data = (await response.json()) as {

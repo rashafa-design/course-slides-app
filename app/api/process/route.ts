@@ -160,10 +160,13 @@ export async function POST(request: Request) {
     } catch (err) {
       if (err instanceof ImageQuotaExceededError) {
         quotaHit = true;
-        imageGenerationNote =
-          "Gemini's free image-generation limit was reached partway through - some slides don't have a generated image. Try re-processing later to fill in the rest.";
+        imageGenerationNote = (err as Error).message;
+      } else {
+        // Surface it rather than hide it, at least for the first failure -
+        // otherwise a real bug (bad model name, bad key) looks identical
+        // to "no image was needed here."
+        imageGenerationNote ??= `Image generation failed: ${(err as Error).message}`;
       }
-      // Any other error: skip just this one image and keep going.
     }
   }
 

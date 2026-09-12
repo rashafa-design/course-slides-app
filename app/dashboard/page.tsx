@@ -39,9 +39,18 @@ export default async function DashboardPage() {
 
       const urlByPath = new Map(entries.filter((entry): entry is [string, string] => Boolean(entry[1])));
 
+      let downloadUrl: string | null = null;
+      if (deck.deck_file_path) {
+        const { data } = await supabase.storage
+          .from("course-files")
+          .createSignedUrl(deck.deck_file_path, 60 * 60, { download: true });
+        downloadUrl = data?.signedUrl ?? null;
+      }
+
       return {
         deck,
         urlByPath,
+        downloadUrl,
         imageUrls: deck.extracted_image_paths.map((p) => urlByPath.get(p)).filter((u): u is string => Boolean(u)),
       };
     })
@@ -70,7 +79,7 @@ export default async function DashboardPage() {
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {decksWithImageUrls.map(({ deck, imageUrls, urlByPath }) => (
+          {decksWithImageUrls.map(({ deck, imageUrls, urlByPath, downloadUrl }) => (
             <li key={deck.id} className="rounded-md border border-gray-200 p-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{MODE_LABELS[deck.mode]}</span>
@@ -82,7 +91,17 @@ export default async function DashboardPage() {
                 {new Date(deck.created_at).toLocaleString()} · {deck.style} style
               </p>
 
-              <ProcessButton deckId={deck.id} status={deck.status} />
+              <div className="flex items-center gap-2">
+                <ProcessButton deckId={deck.id} status={deck.status} />
+                {downloadUrl && (
+                  <a
+                    href={downloadUrl}
+                    className="rounded-md bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700"
+                  >
+                    Download .pptx
+                  </a>
+                )}
+              </div>
 
               {deck.status === "failed" && deck.error_message && (
                 <p className="mt-2 text-xs text-red-600">{deck.error_message}</p>

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { extractContent } from "@/lib/readers";
+import { extractContent, type ExtractedImage } from "@/lib/readers";
 import { generateSlides, type SourceSection } from "@/lib/ai/generate-slides";
+import { buildDeck } from "@/lib/pptx/build-deck";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -58,10 +59,11 @@ export async function POST(request: Request) {
 
   const sourceSections: SourceSection[] = [];
   const allImagePaths: string[] = [];
-  // Maps a source label (e.g. "chapter.pptx :: Slide 3") to the storage
-  // paths of images that appeared in that exact section, so we can hand
-  // the right pictures back to whichever new slide the AI says came from it.
-  const sectionImageMap = new Map<string, string[]>();
+  // Maps a source label (e.g. "chapter.pptx :: Slide 3") to the images that
+  // appeared in that exact section - keeping both the storage path (for the
+  // database/gallery) and the raw bytes (for embedding into the .pptx
+  // itself, further down) so we don't have to re-download anything.
+  const sectionImageMap = new Map<string, { path: string; image: ExtractedImage }[]>();
 
   for (const upload of uploads) {
     const { data: fileBlob, error: downloadError } = await supabase.storage
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
       const label = `${upload.file_name} :: ${section.label}`;
       sourceSections.push({ label, text: section.text });
 
-      const sectionPaths: string[] = [];
+      const sectionImages: { path: string; image: ExtractedImage }[] = [];
       for (let i = 0; i < section.images.length; i++) {
         const image = section.images[i];
         const path = `${user.id}/extracted/${deckId}/${upload.id}-${i}-${image.fileName}`;
@@ -97,12 +99,12 @@ export async function POST(request: Request) {
           .from("course-files")
           .upload(path, image.data, { upsert: true });
         if (!imageUploadError) {
-          sectionPaths.push(path);
+          sectionImages.push({ path, image });
           allImagePaths.push(path);
         }
       }
-      if (sectionPaths.length > 0) {
-        sectionImageMap.set(label, sectionPaths);
+      if (sectionImages.length > 0) {
+        sectionImageMap.set(label, sectionImages);
       }
     }
   }
@@ -116,13 +118,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
+  const imagesBySlide: ExtractedImage[][] = [];
   for (const slide of slides) {
-    const images: string[] = [];
-    for (const label of slide.sourceLabels ?? []) {
-      const paths = sectionImageMap.get(label);
-      if (paths) images.push(...paths);
-    }
-    slide.images = images;
+    const matched = (slide.sourceLabels ?? []).flatMap((label) => sectionImageMap.get(label) ?? []);
+    slide.images = matched.map((m) => m.path);
+    imagesBySlide.push(matched.map((m) => m.image));
+  }
+
+  let deckBuffer: Buffer;
+  try {
+    deckBuffer = await buildDeck(slides, imagesBySlide, deck.style);
+  } catch (err) {
+    const message = `Couldn't assemble the PowerPoint file: ${(err as Error).message}`;
+    await markFailed(message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  const deckFilePath = `${user.id}/decks/${deckId}/deck.pptx`;
+  const { error: deckUploadError } = await supabase.storage
+    .from("course-files")
+    .upload(deckFilePath, deckBuffer, {
+      upsert: true,
+      contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    });
+
+  if (deckUploadError) {
+    const message = `Couldn't save the finished file: ${deckUploadError.message}`;
+    await markFailed(message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const { error: updateError } = await supabase
@@ -131,6 +154,7 @@ export async function POST(request: Request) {
       extracted_text: sourceSections.map((s) => `=== ${s.label} ===\n${s.text}`).join("\n\n"),
       extracted_image_paths: allImagePaths,
       slides_json: slides,
+      deck_file_path: deckFilePath,
       status: "ready",
       error_message: null,
       updated_at: new Date().toISOString(),

@@ -21,6 +21,13 @@ create policy "Users manage their own uploads"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- Tables created via raw SQL (unlike the dashboard's table editor) don't
+-- automatically grant access to logged-in users - RLS policies alone do
+-- nothing without this base grant, and every query fails with
+-- "permission denied for table ..." until it's added.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.uploads to authenticated;
+
 -- One row per slide deck being produced from one or more uploads.
 -- Nothing generates the actual deck yet (that's a later phase) - for now
 -- every deck just sits at status 'uploaded'.
@@ -44,6 +51,8 @@ create policy "Users manage their own decks"
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+grant select, insert, update, delete on public.decks to authenticated;
 
 -- Private bucket holding both uploaded source files and, later, finished
 -- decks. Files are stored under a path starting with the owner's user id

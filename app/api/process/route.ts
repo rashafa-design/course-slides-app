@@ -6,7 +6,7 @@ import { buildDeck } from "@/lib/pptx/build-deck";
 import { generateImage, ImageQuotaExceededError } from "@/lib/ai/generate-image";
 import type { DeckRow, UploadRow } from "@/lib/types";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const { deckId } = (await request.json()) as { deckId?: string };
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
   // For slides with no real diagram to reuse, try generating one - but the
   // moment the free tier's limit is hit, stop asking for more rather than
   // failing the whole deck over it. Slides after that point just go without.
-  const MAX_GENERATION_ATTEMPTS = 8;
+  const MAX_GENERATION_ATTEMPTS = 5;
   let imageGenerationNote: string | null = null;
   let quotaHit = false;
   let attempts = 0;

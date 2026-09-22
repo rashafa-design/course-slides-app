@@ -36,7 +36,10 @@ export async function generateSlides(
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 8192,
+    // A big requested slide count (e.g. "40 slides") needs real room -
+    // each slide's title/bullets/notes/questions adds up fast, and a
+    // truncated response means an incomplete tool call further down.
+    max_tokens: 16000,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: sourceText }],
     tools: [
@@ -77,11 +80,14 @@ export async function generateSlides(
   for (const block of response.content) {
     if (block.type === "tool_use" && block.name === "produce_slides") {
       const input = block.input as { slides?: SlideContent[] };
-      if (Array.isArray(input.slides)) {
+      if (Array.isArray(input.slides) && input.slides.length > 0) {
         return input.slides;
       }
     }
   }
 
-  throw new Error("The AI didn't return any slides.");
+  // stop_reason tells us why, e.g. "max_tokens" means the response got cut
+  // off mid-generation (too many slides requested for the space given) -
+  // surface that instead of a generic, undiagnosable failure.
+  throw new Error(`The AI didn't return any slides (stop reason: ${response.stop_reason}).`);
 }
